@@ -1,1 +1,3 @@
 FastAPI
+whisper
+faster_whisper

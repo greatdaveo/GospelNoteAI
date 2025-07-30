@@ -1,3 +1,5 @@
 FastAPI
 whisper
 faster_whisper
+openai
+dotenv

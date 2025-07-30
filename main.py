@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from routes.sermon import router as SermonRouter
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
 

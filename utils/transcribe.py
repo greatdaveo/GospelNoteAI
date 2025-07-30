@@ -18,7 +18,7 @@ def transcribe_audio(audio_bytes: bytes) -> str:
 
     full_text = ""
     for segment in segments:
-        # print(f"[{segment.start:.2f}s - {segment.end:.2f}s] {segment.text}")
+        print(f"[{segment.start:.2f}s - {segment.end:.2f}s] {segment.text}")
         full_text += segment.text.strip() + " "
         # print(full_text.strip())
 

@@ -11,6 +11,8 @@ router = APIRouter()
 async def transcribe_sermon(file: UploadFile = File(...)):
     try:
         print("------- 📌 TRANSCRIBE BEGINS: -------")
+        print("Received file:", file.filename)
+
         audio_bytes = await file.read()
         if not audio_bytes:
             print("No Audio")
@@ -34,7 +36,9 @@ async def transcribe_sermon(file: UploadFile = File(...)):
         # To summarize
         summary = generate_summary(transcript)
         # To extract bible verses
-        bible_refs = detect_bible_verses(transcript)
+        bible_refs = detect_bible_verses(" ".join(summary))
+
+        print("Bible References: ", bible_refs)
 
         return {
             "transcript": transcript,

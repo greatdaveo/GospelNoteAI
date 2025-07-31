@@ -3,3 +3,4 @@ whisper
 faster_whisper
 openai
 dotenv
+ffmpeg

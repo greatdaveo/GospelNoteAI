@@ -8,6 +8,7 @@ app = FastAPI()
 
 app.include_router(SermonRouter, prefix="/api/sermon", tags=["Sermon"])
 
+
 @app.get("/")
 def root():
     return {

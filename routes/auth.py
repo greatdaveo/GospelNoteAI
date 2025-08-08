@@ -10,7 +10,7 @@ from utils.token_store import reset_tokens
 from utils.otp_store import set_otp, verify_otp
 from utils.email import send_email
 from datetime import datetime
-
+from utils.auth import get_current_user
 
 
 router = APIRouter()
@@ -159,6 +159,13 @@ def reset_password_otp(data: ResetPasswordOTPRequest, session: Session = Depends
     return {
         "message": "Password reset successful"
     }
+
+@router.get("/me", response_model=User)
+def get_me(
+        session: Session = Depends(get_session),
+        current_user:User = Depends(get_current_user)
+    ):
+        return current_user
 
 
 # @router.post("/reset-password")

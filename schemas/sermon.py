@@ -14,3 +14,8 @@ class SermonOutput(SermonCreate):
 
 class Config:
     orm_mode = True
+
+class SermonUpdate(BaseModel):
+    title: Optional[str] = None
+    summary: Optional[str] = None
+    bible_references: Optional[List[str]]

@@ -29,7 +29,7 @@ def generate_summary(transcript: str)-> list[str]:
     for idx, chunk in enumerate(chunks):
         prompt = (
             f"""
-            You are a gospel sermon summarizer. 
+            You are a gospel sermon note writer and summarizer. 
             
             Note the following points
             
@@ -38,8 +38,14 @@ def generate_summary(transcript: str)-> list[str]:
             - Your task is to extract the key points from the following sermon transcript. 
             - Return bullet points that clearly summarize the main preaching or teaching, 
             - Highlight the Bible verses mentioned for each bullet points, and anyone mentioned separately.
+            - Take note of the words; chapter, verses or verse, to, etc and correct them into a real bible verse the preacher meant.
             - If no bible verse is mentioned, don't mention by yourself 
+            - Let your point not be the preacher said, no but make it expressive like, for example:
+                - The way of the lord is... (Genesis 1:1) 
+                - There are two types of .... (Exodus (1:1)
             - Highlight each headings or subheadings mentioned (where necessary)
+            - If the preacher uses a bible verse to back up their point, please include it after you have written the key point.
+            
             
             Sermon Transcript (Part {idx+1} of {len(chunks)})
             {chunk}
@@ -55,7 +61,7 @@ def generate_summary(transcript: str)-> list[str]:
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a church member that summarizes sermon"
+                        "content": "You are a church member that take note and summarizes sermon"
                     },
                     {
                         "role": "user",

@@ -1,8 +1,15 @@
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, File, UploadFile, Depends, HTTPException
 from utils.transcribe import transcribe_audio
 from utils.summarize import generate_summary
 from utils.extract_bible import detect_bible_verses
 from fastapi.responses import JSONResponse
+
+from sqlmodel import Session
+from models.sermon import Sermon
+from schemas.sermon import SermonCreate, SermonOutput
+from models.user import User
+from utils.auth import get_current_user
+from config.db import get_session
 
 router = APIRouter()
 
@@ -52,3 +59,38 @@ async def transcribe_sermon(file: UploadFile = File(...)):
             status_code=500,
             content={"error": str(e)}
         )
+
+@router.post("/save", response_model=SermonOutput)
+def save_sermon(
+        sermon: SermonCreate,
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user)
+    ):
+        try:
+            new_sermon = Sermon(
+                user_id=current_user.id,
+                title=sermon.title,
+                summary=sermon.summary,
+                bible_references=sermon.bible_references,
+            )
+
+            session.add(new_sermon)
+            session.commit()
+            session.refresh(new_sermon)
+
+            return new_sermon
+        except Exception as e:
+            session.rollback()
+            raise  HTTPException(
+                    status_code=500,
+                    detail="Failed to save sermon"
+                )
+
+
+@router.get("/all-sermons")
+def get_sermons(
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user),
+    ):
+        sermons = session.query(Sermon).filter(Sermon.user_id == current_user.id).order_by(Sermon.created_at.desc()).all()
+        return sermons

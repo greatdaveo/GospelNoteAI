@@ -4,3 +4,4 @@ faster_whisper
 openai
 dotenv
 ffmpeg
+uvicorn

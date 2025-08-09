@@ -46,6 +46,7 @@ def generate_summary(transcript: str)-> list[str]:
             - Highlight each headings or subheadings mentioned (where necessary)
             - If the preacher uses a bible verse to back up their point, please include it after you have written the key point.
             
+            -If what you received is not related to a church sermon, just make it known that this is not a sermon or of God.            
             
             Sermon Transcript (Part {idx+1} of {len(chunks)})
             {chunk}

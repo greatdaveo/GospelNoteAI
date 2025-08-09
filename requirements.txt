@@ -13,4 +13,4 @@ sqlmodel==0.0.24
 sympy==1.14.0
 uvicorn[standard]==0.30.6
 python-multipart==0.0.9
-psycopg[binary]==3.2.1
+psycopg[binary]==3.2.9

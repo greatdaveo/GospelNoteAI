@@ -3,7 +3,7 @@ import tempfile
 import ffmpeg
 from faster_whisper import WhisperModel
 
-model = WhisperModel("base")
+model = WhisperModel("base", device="cpu", compute_type="float32")
 
 def convert_audio(input_path: str, output_path: str):
     try:

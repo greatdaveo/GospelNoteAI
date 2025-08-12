@@ -47,7 +47,7 @@ pip install -r requirements.txt
 
 4. **Set up environment variables**
 ```bash
-Create a .env file in the server directory with:
+Create a .env file in your directory with:
 DATABASE_URL=database_url
 JWT_SECRET_KEY=your_secret_key
 JWT_ALGORITHM=HS256

@@ -1,6 +1,6 @@
-# Sermon AI API
+# Gospel Note AI API
 
-This is the API for the Sermon AI mobile application. It is built with FastAPI and provides functionality for sermon transcription, summarization, Bible reference extraction, and storage. The API also manages user authentication, sermon retrieval, and synchronization between the mobile app and the server.
+This is the API for the Gospel Note AI mobile application. It is built with FastAPI and provides functionality for sermon transcription, summarization, Bible reference extraction, and storage. The API also manages user authentication, sermon retrieval, and synchronization between the mobile app and the server.
 
 ## Features
 

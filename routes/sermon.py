@@ -1,163 +1,201 @@
-from fastapi import APIRouter, File, UploadFile, Depends, HTTPException, Request
-from utils.transcribe import transcribe_audio
-from utils.summarize import generate_summary
-from utils.extract_bible import detect_bible_verses
-from fastapi.responses import JSONResponse
+import tempfile
+import os
+import uuid
+from fastapi import APIRouter, File, UploadFile, Depends, HTTPException, Request, BackgroundTasks
+from fastapi.responses import JSONResponse, Response
+from starlette import status
+from typing import Dict, Any
 from sqlmodel import Session, select
 from models.sermon import Sermon
 from schemas.sermon import SermonCreate, SermonOutput, SermonUpdate
 from models.user import User
 from utils.auth import get_current_user
+from utils.transcribe import transcribe_audio, transcribe_file
+from utils.summarize import generate_summary
+from utils.extract_bible import detect_bible_verses
 from config.db import get_session
 from datetime import datetime
 
 router = APIRouter()
 
+# To set native in-memory job store (for a single render instance)
+JOBS: Dict[str, Dict[str, Any]] = {}
 
-@router.post("/transcribe")
-async def transcribe_sermon(file: UploadFile = File(...)):
+
+def _process_job(job_id: str, tmp_path: str):
     try:
-        print("------- 📌 TRANSCRIBE BEGINS: -------")
-        print("Received file:", file.filename)
-
-        audio_bytes = await file.read()
-        if not audio_bytes:
-            print("No Audio")
-            return JSONResponse(
-                status_code=400,
-                content={"error": "No audio provided"}
-            )
-
-        transcript = transcribe_audio(audio_bytes)
-
-        if not transcript:
-            print("Empty transcript returned")
-            return JSONResponse(
-                status_code=500,
-                content={"error": "Transcript failed"}
-            )
-
-        # print("Transcript length:", len(transcript))
-        # print("Transcript Sample:", transcript[:100])
-
-        # To summarize
+        JOBS[job_id]["status"] = "processing"
+        # To transcribe
+        transcript = transcribe_file(tmp_path)
+        # To summarize and extract bible verses
         summary = generate_summary(transcript)
-        # To extract bible verses
         bible_refs = detect_bible_verses(" ".join(summary))
-
-        print("Bible References: ", bible_refs)
-
-        return {
-            "transcript": transcript,
-            "summary": summary,
-            "bible_references": bible_refs
-        }
+        # If successful
+        JOBS[job_id].update({
+            "status": "done",
+            "result": {
+                "transcript": transcript,
+                "summary": summary,
+                "bible_references": bible_refs,
+            },
+            "error": None
+        })
 
     except Exception as e:
-        print("Exception Error:", str(e))
+        # To record the error instead of throwing a 500
+        JOBS[job_id].update({
+            "status": "error",
+            "error": f"{e}",
+            "trace": traceback.format_exc(),
+            "result": None,
+        })
+    finally:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
+
+
+@router.post("/transcribe", status_code=202)
+async def start_transcription(background: BackgroundTasks, file: UploadFile = File(...)):
+    # To save upload to a temp file & avoid to load all file into RAM
+    suffix = os.path.splitext(file.filename or ".m4a")[-1] or ".m4a"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp_path = tmp.name
+        while chunk := await file.read(1024 * 1024):
+            tmp.write(chunk)
+
+    job_id = uuid.uuid4().hex
+    JOBS[job_id] = {"status": "queued", "result": None, "error": None}
+
+    background.add_task(_process_job, job_id, tmp_path)
+
+    # For client to poll GET /api/sermon/transcribe/{job_id}
+    return {
+        "job_id": job_id,
+        "status": "queued",
+    }
+
+@router.get("/transcribe/{job_id}")
+def get_transcription(job_id: str):
+    job = JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "❌Job not found")
+
+    if job["status"] == "done":
+        return {"status": "done", **job["result"]}
+
+    if job["status"] == "error":
         return JSONResponse(
             status_code=500,
-            content={"error": str(e)}
+            content={"status": "error", "error": job["error"]},
         )
+
+    # To start queue or processing
+    return {"status": job["status"]}
+
 
 @router.post("/save", response_model=SermonOutput)
 def save_sermon(
-        sermon: SermonCreate,
-        session: Session = Depends(get_session),
-        current_user: User = Depends(get_current_user)
-    ):
-        try:
-            new_sermon = Sermon(
-                user_id=current_user.id,
-                title=sermon.title,
-                summary=sermon.summary,
-                bible_references=sermon.bible_references,
-            )
+    sermon: SermonCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        new_sermon = Sermon(
+            user_id=current_user.id,
+            title=sermon.title,
+            summary=sermon.summary,
+            bible_references=sermon.bible_references,
+        )
 
-            session.add(new_sermon)
-            session.commit()
-            session.refresh(new_sermon)
+        session.add(new_sermon)
+        session.commit()
+        session.refresh(new_sermon)
 
-            return new_sermon
-        except Exception as e:
-            session.rollback()
-            raise  HTTPException(
-                    status_code=500,
-                    detail="Failed to save sermon"
-                )
+        return new_sermon
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save sermon"
+        )
 
 
 @router.get("/all-sermons")
 def get_sermons(
-        session: Session = Depends(get_session),
-        current_user: User = Depends(get_current_user),
-    ):
-        sermons = session.query(Sermon).filter(Sermon.user_id == current_user.id).order_by(Sermon.created_at.desc()).all()
-        return sermons
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    sermons = (
+        session.query(Sermon)
+       .filter(Sermon.user_id == current_user.id)
+       .order_by(Sermon.created_at.desc())
+       .all()
+    )
+    return sermons
 
-def to_dict(model):
-    if hasattr(model, "model_dump"):
-        return model.model_dump(exclude_unset=True)
-    return model.dict(exclude_unset=True)
 
 @router.patch("/{sermon_id}")
 async def update_sermon(
-            sermon_id: int,
-            request: Request,
-            session: Session = Depends(get_session),
-            current_user: User = Depends(get_current_user),
-        ):
+    sermon_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
 
-            payload = await  request.json()
+    payload = await request.json()
 
-            sermon = session.exec(select(Sermon).where(
-                Sermon.id == sermon_id,
-                Sermon.user_id == current_user.id
-            )).first()
+    sermon = session.exec(select(Sermon).where(
+        Sermon.id == sermon_id,
+        Sermon.user_id == current_user.id
+    )).first()
 
-            if not sermon:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Sermon not found"
-                )
+    if not sermon:
+        raise HTTPException(
+            status_code=404,
+            detail="Sermon not found"
+        )
 
-            allowed = {"title", "summary", "bible_references"}
-            updated = False
+    allowed = {"title", "summary", "bible_references"}
+    updated = False
 
-            # To update only the provided fields
-            for key, value in payload.items():
-                if key in allowed:
-                    setattr(sermon, key, value)
-                    updated = True
+    # To update only the provided fields
+    for key, value in payload.items():
+        if key in allowed:
+            setattr(sermon, key, value)
+            updated = True
 
-            if not updated:
-                raise HTTPException(
-                    status_code=400,
-                    detail="No valid fields to update"
-                )
+    if not updated:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid fields to update"
+        )
 
-            sermon.updated_at = datetime.utcnow()
-            session.add(sermon)
-            session.commit()
-            session.refresh(sermon)
+    sermon.updated_at = datetime.utcnow()
+    session.add(sermon)
+    session.commit()
+    session.refresh(sermon)
 
-            return sermon
+    return sermon
 
 
 @router.delete("/{sermon_id}", status_code=204)
 def delete_sermon(
-            sermon_id: int,
-            session: Session = Depends(get_session),
-            current_user: User = Depends(get_current_user),
-        ):
-            sermon = session.query(Sermon).filter(Sermon.id == sermon_id, Sermon.user_id == current_user.id).first()
-            if not sermon:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Sermon not found"
-                )
+    sermon_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    sermon = session.query(Sermon).filter(
+        Sermon.id == sermon_id, Sermon.user_id == current_user.id).first()
+    if not sermon:
+        raise HTTPException(
+            status_code=404,
+            detail="Sermon not found"
+        )
 
-            session.delete(sermon)
-            session.commit()
+    session.delete(sermon)
+    session.commit()
 
-            return Response(status_code=204)
+    return Response(status_code=204)

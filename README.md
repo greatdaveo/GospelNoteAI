@@ -57,6 +57,7 @@ OPENAI_API_KEY=your_openai_key
 5. **Run the server**
 ```bash
 uvicorn main:app --reload
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 6. API Documentation

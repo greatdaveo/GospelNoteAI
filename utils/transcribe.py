@@ -38,25 +38,28 @@ def convert_audio(input_path: str, output_path: str):
 
     except ffmpeg.Error as e:
         error_msg = e.stderr.decode() if e.stderr else "Unknown ffmpeg error"
-        print("❌ FFMPEG Conversion Error:", error_msg)
+        print(" FFMPEG Conversion Error:", error_msg)
         raise RuntimeError(f"FFMPEG failed: {error_msg}")
 
 
-def transcribe_audio(audio_bytes: bytes) -> str:
-    m4a_path = None
+def transcribe_audio(audio_bytes: bytes, file_extension: str = ".webm") -> str:
+    input_path = None
     wav_path = None
 
     try:
-        # To save uploaded bytes as .m4a
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".m4a") as m4a_file:
-            m4a_file.write(audio_bytes)
-            m4a_path = m4a_file.name
+        # Save uploaded bytes with proper extension so FFmpeg can detect format
+        ext = file_extension.lower() if file_extension else ".webm"
+        if not ext.startswith("."):
+            ext = "." + ext
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as input_file:
+            input_file.write(audio_bytes)
+            input_path = input_file.name
 
-        # To convert to 16k mono WAV & create output .wav path (The smallest RAM footprint for Whisper)
+        # Convert to 16k mono WAV & create output .wav path (The smallest RAM footprint for Whisper)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as wav_file:
             wav_path = wav_file.name
 
-        convert_audio(m4a_path, wav_path)
+        convert_audio(input_path, wav_path)
 
         # To get the shared model (loaded once)
         model = get_model()
@@ -78,14 +81,14 @@ def transcribe_audio(audio_bytes: bytes) -> str:
         return " ".join(parts).strip()
 
     except Exception as e:
-        print("❌ Transcription failed:", str(e))
+        print(" Transcription failed:", str(e))
         raise
 
     finally:
         # To clean up
         try:
-            if m4a_path and os.path.exists(m4a_path):
-                os.remove(m4a_path)
+            if input_path and os.path.exists(input_path):
+                os.remove(input_path)
         except Exception:
             pass
         try:
@@ -96,5 +99,9 @@ def transcribe_audio(audio_bytes: bytes) -> str:
 
 
 def transcribe_file(path: str) -> str:
+    # Get file extension from path for better format detection
+    _, ext = os.path.splitext(path)
+    ext = ext if ext else ".webm"  # Default to .webm for browser recordings
+    
     with open(path, "rb") as f:
-        return transcribe_audio(f.read())
+        return transcribe_audio(f.read(), file_extension=ext)

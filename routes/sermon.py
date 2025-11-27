@@ -1,6 +1,7 @@
 import tempfile
 import os
 import uuid
+import traceback
 from fastapi import APIRouter, File, UploadFile, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.responses import JSONResponse, Response
 from starlette import status
@@ -29,7 +30,8 @@ def _process_job(job_id: str, tmp_path: str):
         transcript = transcribe_file(tmp_path)
         # To summarize and extract bible verses
         summary = generate_summary(transcript)
-        bible_refs = detect_bible_verses(" ".join(summary))
+        joined = " ".join(summary)[:4000]  # To prevent sending huge text
+        bible_refs = detect_bible_verses(joined)
         # If successful
         JOBS[job_id].update({
             "status": "done",
@@ -45,7 +47,7 @@ def _process_job(job_id: str, tmp_path: str):
         # To record the error instead of throwing a 500
         JOBS[job_id].update({
             "status": "error",
-            "error": f"{e}",
+            "error": str(e),
             "trace": traceback.format_exc(),
             "result": None,
         })
@@ -81,7 +83,7 @@ async def start_transcription(background: BackgroundTasks, file: UploadFile = Fi
 def get_transcription(job_id: str):
     job = JOBS.get(job_id)
     if not job:
-        raise HTTPException(404, "❌Job not found")
+        raise HTTPException(404, "Job not found")
 
     if job["status"] == "done":
         return {"status": "done", **job["result"]}

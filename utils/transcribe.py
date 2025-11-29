@@ -4,7 +4,12 @@ import ffmpeg
 from faster_whisper import WhisperModel
 
 # For LOW-RAM model loader
-_MODEL = None
+_MODEL = WhisperModel(
+    "tiny",
+    device="cpu",
+    compute_type="int8",
+    download_root="./models"
+)
 
 # model = WhisperModel("base", device="cpu", compute_type="float32")
 

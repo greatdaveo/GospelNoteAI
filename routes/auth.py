@@ -150,6 +150,11 @@ def reset_password_otp(data: ResetPasswordOTPRequest, session: Session = Depends
             detail="User not found"
         )
 
+    if len(data.new_password) < 6:
+        raise HTTPException(400, "Password too short")
+    if len(data.new_password.encode()) > 256:
+        raise HTTPException(400, "Password too long")
+
     user.password = hash_password(data.new_password)
     user.updated_at = datetime.utcnow()
 

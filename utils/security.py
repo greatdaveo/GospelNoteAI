@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from jose import jwt
 import os
 import secrets
+import hashlib
 
 
 # Secret key to reset token
@@ -30,10 +31,12 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     return encoded_jwt
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    normalized = hashlib.sha256(password.encode()).hexdigest()
+    return pwd_context.hash(normalized)
 
 def verify_password(password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(password, hashed_password)
+    normalized = hashlib.sha256(password.encode()).hexdigest()
+    return pwd_context.verify(normalized, hashed_password)
 
 def generate_access_token(email: str):
    serializer = URLSafeTimedSerializer(SECRET_KEY)

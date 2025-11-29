@@ -3,7 +3,7 @@ from typing import Optional
 from datetime import datetime, date
 from sqlalchemy import UniqueConstraint
 
-class UsageRecor(SQLModel, table=True):
+class UsageRecord(SQLModel, table=True):
     __tablename__ = "usage_records"
 
     # Composite unique constraint ensures one record per user per month

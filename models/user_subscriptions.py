@@ -24,5 +24,5 @@ class UserSubscription(SQLModel, table=True):
     cancel_at_period_end: bool = Field(default=False)
     canceled_at: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
     
